@@ -1,0 +1,68 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Users {
+  id String @id @default(uuid())
+  name String
+  email String
+  username String
+  password String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  post Posts []
+  comments Comments []
+  link Likes[]
+}
+
+model Posts {
+  id String @id @default(uuid())
+  phone_number String
+  city String
+  caption String
+  name String
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  likes  Int @default(0)
+  comments Comments []
+  image Image []
+}
+
+model Image {
+  id String @id @default(uuid())
+  path String
+  postId String
+  post Posts @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model Comments {
+  id String @id @default(uuid())
+  message String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  post Posts @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId String
+  parent Comments? @relation("ParentChield", fields: [parentId], references: [id], onDelete: Cascade)
+  children Comments[] @relation("ParentChield")
+  parentId String?
+  like Likes[]
+}
+
+model Likes {
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comments @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId String
+  commentId String
+  @@id([userId, commentId])
+}
