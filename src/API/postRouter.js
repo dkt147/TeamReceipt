@@ -22,7 +22,9 @@ postRouter.post(
         name: name,
         images: images,
       };
+      console.log(data);
       const response = await service.CreatePost(data);
+      console.log(response);
       return res.json(response);
     } catch (err) {
       res
@@ -39,6 +41,7 @@ postRouter.delete(
     try {
       const id = req.params.id;
       const response = await service.DeletePost(id);
+      console.log(response);
       return res.json(response);
     } catch (err) {
       res
