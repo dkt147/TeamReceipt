@@ -3,6 +3,9 @@ import PostService from "../Services/PostService.js";
 import authenticateToken from "../middleware/authnticateToken.js";
 import { upload } from "../middleware/upload.js";
 import AWS from "aws-sdk";
+import fetch from "node-fetch";
+import fs from 'fs';
+import util from 'util';
 
 const postRouter = express();
 
@@ -12,8 +15,10 @@ const service = new PostService();
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: "your-aws-region", 
+  region: "us-east-1", 
 });
+
+const readFile = util.promisify(fs.readFile);
 
 postRouter.post(
   "/createPost",
@@ -22,53 +27,63 @@ postRouter.post(
   async (req, res, next) => {
     try {
       const { phone_number, city, caption, name } = req.body;
-      // const images = req.files.map((file) => file.path);
-
       const images = req.files.map((file) => ({
         path: file.path,
         originalname: file.originalname,
         mimetype: file.mimetype,
       }));
 
-      // Generate pre-signed URL for each image
+      // Generate pre-signed URL for each image and upload using AWS SDK
       const uploadedImages = await Promise.all(
         images.map(async (image) => {
+          const fileData = await readFile(image.path);
+
           const params = {
-            Bucket: "your-bucket-name", 
-            Key: `uploads/${image.originalname}`, 
+            Bucket: "tea-receipts-s3",
+            Key: `uploads/posts/${image.originalname}`,
+            Body: fileData,
             ContentType: image.mimetype,
-            ACL: "public-read",
           };
 
-          // Get pre-signed URL for S3 upload
-          const uploadUrl = await s3.getSignedUrlPromise("putObject", params);
+          try {
+            // Upload the image to S3 using the AWS SDK
+            await s3.putObject(params).promise();
 
-          // Store the S3 URL and any metadata in your database
-          return {
-            originalname: image.originalname,
-            uploadUrl,
-          };
+            // Verify the image upload
+            // const fileUrl = `https://${params.Bucket}.s3.amazonaws.com/uploads/posts/${image.originalname}`;
+            // const verifyResponse = await fetch(fileUrl);
+
+            // if (!verifyResponse.ok) {
+            //   throw new Error(`Image ${image.originalname} is not accessible after upload.`);
+            // }
+
+            // Return the S3 URL and any metadata
+            return {
+              originalname: image.originalname,
+            };
+          } catch (uploadError) {
+            console.error(`Error uploading image ${image.originalname}:`, uploadError);
+            throw new Error(`Failed to upload image ${image.originalname}`);
+          }
         })
       );
-
 
       const data = {
         phone_number,
         city,
         caption,
         // userId: req.user.id,
-        userId: "52caa152-a583-4754-ae21-1cde220cd82a",
+        userId: "104d6e47-4d4c-42a6-a71b-817ee204991e",
         name,
-        // images: images,
-        images: uploadedImages.map((image) => image.uploadUrl),
+        images: uploadedImages.originalname,
       };
-
 
       console.log(data);
       const response = await service.CreatePost(data);
       console.log(response);
       return res.json(response);
     } catch (err) {
+      console.error('Error during post creation:', err);
       res
         .status(err.statusCode || 500)
         .json({ status: "fail", message: err.message });
